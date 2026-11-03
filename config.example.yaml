@@ -1,0 +1,7 @@
+catalog: /data/nisar_catalog
+output_dir: /data/nisar
+mission: NISAR
+log_level: INFO
+processes: 3
+product_types: ["RSLC", "GSLC"]
+skip_existing: true

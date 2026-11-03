@@ -1,0 +1,53 @@
+# apptainer definition for asf-downloader.
+#
+# Usage (HPC / Airflow):
+#   apptainer build asf-downloader.sif apptainer.def
+#   apptainer exec asf-downloader.sif asf-downloader --help
+#
+# The runscript forwards every argument to the ``asf-downloader`` CLI, so the
+# container can be invoked directly:
+#   apptainer run asf-downloader.sif download --catalog /data/catalog --outputdir /data/nisar
+#
+# Authentication: mount the caller's ~/.netrc (Earthdata Login) into the container, or set
+# ASF_EDL_TOKEN in the environment. Never bake credentials into the image.
+
+Bootstrap: docker
+From: python:3.12-slim
+
+%environment
+export PYTHONUNBUFFERED=1
+
+%files
+./pyproject.toml /
+./README.md /
+./LICENSE /
+./config.example.yaml /
+./src /
+
+%post
+# hatch-vcs derives the package version from the git tag. The checkout baked
+# into the image has no .git history, so pin the version explicitly; override
+# at build time with:  apptainer build --set-env VERSION=2026.11.03 ...
+export SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION:-0.0.0+local}
+set -eux
+# Debian slim images ship no git (hatch-vcs fallback) and no compilers are
+# needed because all dependencies are pure-Python or ship wheels.
+python -m pip install --no-cache-dir --upgrade pip
+python -m pip install --no-cache-dir /
+
+%runscript
+exec asf-downloader "$@"
+
+%help
+asf-downloader container
+======================
+
+Downloads NISAR RSLC/GSLC products from ASF, driven by metadata-asf daily
+Parquet catalogs.
+
+  apptainer exec asf-downloader.sif asf-downloader download \
+      --catalog /data/nisar_catalog --outputdir /data/nisar
+
+Authentication via ~/.netrc (Earthdata Login) or the ASF_EDL_TOKEN
+environment variable. The full CLI is documented in README.md; the entry
+point is ``asf_downloader.cli:main``.
