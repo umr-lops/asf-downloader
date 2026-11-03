@@ -22,7 +22,7 @@ def _write_catalog(dir_path: Path, granules: list[str]) -> Path:
 def _install_fake_search(monkeypatch: pytest.MonkeyPatch, products: list[FakeProduct]) -> None:
     def fake_granule_search(granule_list: list[str], session: Any = None, **kw: Any) -> list[Any]:
         wanted = set(granule_list)
-        return [p for p in products if p.sceneName in wanted]
+        return [p for p in products if p.properties["sceneName"] in wanted]
 
     monkeypatch.setattr(asf, "granule_search", fake_granule_search)
 

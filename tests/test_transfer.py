@@ -14,23 +14,31 @@ from asf_downloader.transfer.https import AsfHttpsBackend
 
 
 class FakeProduct:
-    """Minimal stand-in for ``asf_search.ASFProduct``.
+    """Minimal stand-in for ``asf_search`` NISAR products.
 
-    ``download`` writes a small file named ``fileName`` into the destination so the backend's
-    on-disk checks behave like the real client.
+    Mirrors the real representation: metadata lives in a ``properties`` dict (keyed by
+    ``sceneName`` / ``fileName``), not as plain attributes. ``download`` writes a small file
+    named ``fileName`` into the destination so the backend's on-disk checks behave like the real
+    client.
     """
 
     def __init__(self, scene_name: str, file_name: str | None = None, fail: bool = False) -> None:
-        self.sceneName = scene_name
-        self.fileName = file_name or f"{scene_name}.h5"
+        self.properties = {
+            "sceneName": scene_name,
+            "fileName": file_name or f"{scene_name}.h5",
+        }
         self.fail = fail
         self.calls = 0
+
+    @property
+    def fileName(self) -> str:  # convenience mirror, not used by the backend.
+        return self.properties["fileName"]
 
     def download(self, path: str, session: Any = None, **kwargs: Any) -> str:
         self.calls += 1
         if self.fail:
             raise ConnectionError("simulated network failure")
-        target = Path(path) / self.fileName
+        target = Path(path) / self.properties["fileName"]
         target.write_bytes(b"fake-sar-bytes")
         return str(target)
 
@@ -40,7 +48,7 @@ def _install_fake_search(monkeypatch: pytest.MonkeyPatch, products: list[FakePro
 
     def fake_granule_search(granule_list: list[str], session: Any = None, **kw: Any) -> list[Any]:
         wanted = set(granule_list)
-        return [p for p in products if p.sceneName in wanted]
+        return [p for p in products if p.properties["sceneName"] in wanted]
 
     monkeypatch.setattr(asf, "granule_search", fake_granule_search)
 

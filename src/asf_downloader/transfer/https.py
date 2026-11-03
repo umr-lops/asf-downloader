@@ -37,6 +37,33 @@ _RETRYABLE: tuple[type[BaseException], ...] = (
 _CHUNK_SIZE = 250
 
 
+def _prop(product: Any, key: str) -> str:
+    """Read a metadata field from an ``ASFProduct`` robustly.
+
+    ``asf_search`` products (notably the NISAR ``NISARProduct`` subclass) expose their metadata
+    through the ``product.properties`` dict rather than as plain attributes, so the dict is tried
+    first and a direct attribute is used as a fallback (keeps the backend tolerant to asf_search
+    representation changes and to lightweight test doubles).
+
+    Args:
+        product: an ``asf_search.ASFProduct`` (or a test double exposing the same fields).
+        key: the field name, e.g. ``"sceneName"`` or ``"fileName"``.
+
+    Returns:
+        The field value as a string.
+
+    Raises:
+        KeyError: if neither the ``properties`` dict nor a matching attribute carries the field.
+    """
+    properties = getattr(product, "properties", None)
+    if isinstance(properties, dict) and properties.get(key) is not None:
+        return str(properties[key])
+    value = getattr(product, key, None)
+    if value is not None:
+        return str(value)
+    raise KeyError(f"Product is missing the '{key}' field")
+
+
 class AsfHttpsBackend(TransferBackend):
     """Download products over authenticated ASF HTTPS (``asf_search``).
 
@@ -74,7 +101,7 @@ class AsfHttpsBackend(TransferBackend):
                     granule_id=granule_id, status="failed", error="not found in the ASF catalog"
                 )
                 continue
-            target = destination / str(product.fileName)
+            target = destination / _prop(product, "fileName")
             if skip_existing and target.exists() and target.stat().st_size > 0:
                 results[granule_id] = TransferResult(
                     granule_id=granule_id,
@@ -115,7 +142,7 @@ class AsfHttpsBackend(TransferBackend):
             chunk = granule_ids[start : start + _CHUNK_SIZE]
             found = self._granule_search(chunk, session)
             for product in found:
-                products[str(product.sceneName)] = product
+                products[_prop(product, "sceneName")] = product
         return products
 
     @retry(
@@ -125,13 +152,18 @@ class AsfHttpsBackend(TransferBackend):
         reraise=True,
     )
     def _granule_search(self, granule_ids: list[str], session: Any) -> list[Any]:
-        """One batched ``asf_search.granule_search`` call, retried on transient failures."""
-        return list(asf.granule_search(granule_list=list(granule_ids), session=session))
+        """One batched ``asf_search.granule_search`` call, retried on transient failures.
+
+        The authenticated session is passed through ``ASFSearchOptions`` (``asf_search``'s
+        ``granule_search`` does not take a ``session`` keyword directly).
+        """
+        options = asf.ASFSearchOptions(session=session)
+        return list(asf.granule_search(granule_list=list(granule_ids), opts=options))
 
     def _download_one(self, product: Any, destination: Path) -> TransferResult:
         """Fetch a single product (with retry) and report its outcome."""
-        granule_id = str(product.sceneName)
-        target = destination / str(product.fileName)
+        granule_id = _prop(product, "sceneName")
+        target = destination / _prop(product, "fileName")
         try:
             self._fetch(product, destination)
             size = target.stat().st_size if target.exists() else 0
