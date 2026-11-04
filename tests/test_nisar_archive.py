@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from pathlib import Path
 
@@ -110,14 +111,20 @@ class TestArchiveConfig:
         config = archive_config_from_yaml(config_path, log_level="ERROR")
         assert config.log_level == "ERROR"
 
-    def test_unknown_key_rejected(self, tmp_path: Path) -> None:
+    def test_unknown_key_warns(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+        """An unrecognized top-level key is ignored with a warning (shared config file)."""
         config_path = tmp_path / "archive.yaml"
         config_path.write_text(
-            f"spool: {tmp_path / 'spool'}\narchive_dir: {tmp_path / 'archive'}\nmission: NISAR\n",
+            f"spool: {tmp_path / 'spool'}\n"
+            f"archive_dir: {tmp_path / 'archive'}\n"
+            "catalog: /data/cat\n",
             encoding="utf-8",
         )
-        with pytest.raises(ValidationError):
-            archive_config_from_yaml(config_path)
+        with caplog.at_level(logging.WARNING):
+            config = archive_config_from_yaml(config_path)
+        assert config.spool == tmp_path / "spool"
+        assert config.archive_dir == tmp_path / "archive"
+        assert "catalog" in caplog.text
 
     def test_missing_required_key_rejected(self, tmp_path: Path) -> None:
         config_path = tmp_path / "archive.yaml"

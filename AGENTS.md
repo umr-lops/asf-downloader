@@ -128,6 +128,13 @@ fichier non NISAR → ignoré. Re-exécution idempotente (destination de même t
 Codes de sortie : `0` tout archivé, `1` au moins un produit manquant ou en quarantaine,
 `2` usage invalide.
 
+> **Config opérationnelle partagée** : un même YAML peut servir les deux commandes
+> (`config_production_hpc.yaml` en production HPC). Les clés d'un fichier qui ne sont pas
+> des champs du modèle consommé sont **ignorées avec un warning** (
+> `asf_downloader.utils.warn_unknown_keys`) — mais les champs requis du modèle courant
+> doivent toujours être présents. Un seul fichier de config opérationnel vit hors du dépôt,
+> sous `/scale/project/lops-siam-airflow/configs_exploit/asf-downloader/`.
+
 ---
 
 ## 5. Stack technique

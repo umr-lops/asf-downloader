@@ -10,6 +10,8 @@ import yaml
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import PydanticCustomError
 
+from asf_downloader.utils import warn_unknown_keys
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,8 +53,14 @@ class Config(BaseModel):
 def config_from_yaml(path: Path, **overrides: Any) -> Config:
     """Build a :class:`Config` from a YAML file with keyword overrides on top.
 
+    Keys of the file that are not fields of :class:`Config` (for instance the ``nisar-archive``
+    keys when the same file is shared by both commands — see ``config.example.yaml``) are
+    ignored with a warning, so one operational YAML can serve several commands; required fields
+    of this model must still be present.
+
     Args:
-        path: YAML file to read; keys mirror the model's own field names, unknown keys fail fast.
+        path: YAML file to read; keys mirror the model's own field names, unknown keys are
+            ignored with a warning.
         **overrides: explicit non-``None`` values (usually from the CLI) overriding one file
             entry at a time.
 
@@ -61,8 +69,8 @@ def config_from_yaml(path: Path, **overrides: Any) -> Config:
 
     Raises:
         FileNotFoundError: if ``path`` does not exist.
-        pydantic.ValidationError: if required fields are missing or inconsistent, if any
-            top-level key is unknown, or if the YAML document is not a mapping.
+        pydantic.ValidationError: if required fields are missing or inconsistent, or if the
+            YAML document is not a mapping.
     """
     logger.debug("Building configuration from %s", path)
 
@@ -84,26 +92,7 @@ def config_from_yaml(path: Path, **overrides: Any) -> Config:
             ],
         )
 
-    unknown_keys = set(document) - set(Config.model_fields)
-    if unknown_keys:
-        raise ValidationError.from_exception_data(
-            title=f"Config input ({path.name})",
-            line_errors=[
-                {
-                    "type": PydanticCustomError(
-                        "config_input_unknown_key",
-                        "Unrecognized top-level key(s) in {path}: {keys}; expected exactly one of: "
-                        "{expected}",
-                        {
-                            "path": path.name,
-                            "keys": ", ".join(sorted(unknown_keys)),
-                            "expected": ", ".join(Config.model_fields),
-                        },
-                    ),
-                    "input": document,
-                }
-            ],
-        )
+    warn_unknown_keys(document, path.name, set(Config.model_fields))
 
     merged_document = dict(document)
     valid_keys = set(Config.model_fields)
