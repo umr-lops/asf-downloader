@@ -10,40 +10,39 @@ SemVer (see ``AGENTS.md``).
 
 .. automodule:: asf_downloader.catalog
    :members:
-   :undoc-members:
 
 .. automodule:: asf_downloader.transfer
-   :members:
-   :undoc-members:
+   :no-members:
+
+.. autodata:: asf_downloader.transfer.BACKENDS
+
+.. autofunction:: asf_downloader.transfer.get_backend
+
+.. autoclass:: asf_downloader.transfer.UnknownBackendError
 
 .. automodule:: asf_downloader.transfer.base
    :members:
-   :undoc-members:
 
 .. automodule:: asf_downloader.transfer.https
    :members:
-   :undoc-members:
 
 .. automodule:: asf_downloader.config
    :members:
-   :undoc-members:
 
 .. automodule:: asf_downloader.cli
    :members:
-   :undoc-members:
+
+.. automodule:: asf_downloader.nisar_archive
+   :members:
 
 .. automodule:: asf_downloader.utils
    :members:
-   :undoc-members:
 
 .. automodule:: asf_downloader.profiles
    :members:
-   :undoc-members:
 
 .. automodule:: asf_downloader.profiles.base
    :members:
-   :undoc-members:
 
 .. automodule:: asf_downloader.profiles.nisar
    :members:
-   :undoc-members:
