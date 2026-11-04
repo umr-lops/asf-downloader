@@ -46,6 +46,10 @@ en partant d'une liste de produits (les catalogues Parquet journaliers de `metad
   `granule_id`).
 - **Transport** : backend **HTTPS** (asf_search) aujourd'hui ; interface de transport
   extensible pour un futur backend **S3** (in-cloud uniquement — voir §6).
+- **Archivage** : entry point `nisar-archive` qui déplace les produits `.h5` d'un spool vers
+  `<archive>/<PT>/<AM>/<YYYY>/<MM>/<DD>/` (PT = type de produit, AM = code mode d'acquisition,
+  date = début d'acquisition), piloté par un listing txt/csv — parsing du nom de fichier,
+  aucune API réseau.
 - **Réseau** : authentification Earthdata (EDL) via `~/.netrc` (méthode recommandée ASF) ou via
   la variable d'environnement `ASF_EDL_TOKEN`. **Aucun secret dans le dépôt.**
 
@@ -106,6 +110,23 @@ Priorité : `CLI > fichier --conf > valeurs par défaut`.
 Codes de sortie : `0` succès (tous produits téléchargés ou déjà présents), `1` erreur
 d'exécution (au moins un produit en échec, ou erreur API), `2` usage invalide (arguments
 invalides, mission/backend inconnu, catalogue manquant/illisible).
+
+### Entry point `nisar-archive`
+
+Deuxième console script du package (`asf_downloader.nisar_archive:main`) :
+
+| Option | Type | Requis | Description |
+|---|---|---|---|
+| `--input-listing` | `Path` | oui | Listing des produits à archiver (txt/csv, un `.h5` par ligne, avec ou sans extension) |
+| `--config-path` | `Path` | oui | Fichier YAML (`spool`, `archive_dir`, `log_level`) — voir `archive.example.yaml` |
+| `--log-level` | `str` | non | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` |
+
+Comportement : seuls les produits du listing sont déplacés du spool vers
+`<archive_dir>/<PT>/<AM>/<YYYY>/<MM>/<DD>/<fichier>.h5` (PT = champ 4 du nom NISAR, AM =
+champ 9, date = champ 12). Fichier `NISAR_` illisible ou non listé → `<archive_dir>/quarantine/` ;
+fichier non NISAR → ignoré. Re-exécution idempotente (destination de même taille = skip).
+Codes de sortie : `0` tout archivé, `1` au moins un produit manquant ou en quarantaine,
+`2` usage invalide.
 
 ---
 
@@ -175,7 +196,8 @@ asf-downloader/
 ├── Makefile
 ├── pyproject.toml
 ├── .pre-commit-config.yaml
-├── config.example.yaml
+├── config.example.yaml       # config de download
+├── archive.example.yaml      # config de nisar-archive (spool, archive_dir, log_level)
 ├── apptainer.def
 ├── docs/
 │   ├── download_options.md   # analyse des options de téléchargement (réf. de conception)
@@ -184,6 +206,7 @@ asf-downloader/
 │   └── asf_downloader/
 │       ├── __init__.py          # réexport de l'API publique
 │       ├── cli.py               # argparse (sous-commande download) + orchestration
+│       ├── nisar_archive.py     # entry point nisar-archive (spool → <PT>/<AM>/<YYYY>/<MM>/<DD>/)
 │       ├── config.py            # modèle Pydantic Config + config_from_yaml
 │       ├── catalog.py           # lecture du listing Parquet (metadata-asf)
 │       ├── transfer/
@@ -201,6 +224,7 @@ asf-downloader/
     ├── test_catalog.py
     ├── test_transfer.py
     ├── test_cli.py
+    ├── test_nisar_archive.py
     └── test_profiles.py
 ```
 
@@ -217,6 +241,7 @@ asf-downloader/
 - [x] Tests unitaires (couverture ≥ 80 %), ruff/black/mypy verts
 
 ### Étape 2 — Durcissement & packaging (à faire)
+- [x] Entry point `nisar-archive` (spool → `<PT>/<AM>/<YYYY>/<MM>/<DD>/`, quarantaine, tests)
 - [ ] Test d'intégration `@pytest.mark.integration` (vrai appel ASF + petit téléchargement)
 - [ ] Mesurer taille/checksum réels d'un produit NISAR RSLC/GSLC (réf. quotas)
 - [ ] `apptainer.def` vérifié en build
