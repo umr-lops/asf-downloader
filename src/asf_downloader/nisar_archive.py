@@ -32,7 +32,7 @@ import yaml
 from pydantic import BaseModel, ValidationError
 from pydantic_core import PydanticCustomError
 
-from asf_downloader.utils import setup_logging
+from asf_downloader.utils import setup_logging, warn_unknown_keys
 
 logger = logging.getLogger(__name__)
 
@@ -172,8 +172,14 @@ class ArchiveConfig(BaseModel):
 def archive_config_from_yaml(path: Path, **overrides: Any) -> ArchiveConfig:
     """Build an :class:`ArchiveConfig` from a YAML file with keyword overrides on top.
 
+    Keys of the file that are not fields of :class:`ArchiveConfig` (for instance the
+    ``download`` keys when the same file is shared by both commands — see
+    ``archive.example.yaml``) are ignored with a warning, so one operational YAML can serve
+    several commands; required fields of this model must still be present.
+
     Args:
-        path: YAML file to read; keys mirror the model's field names, unknown keys fail fast.
+        path: YAML file to read; keys mirror the model's field names, unknown keys are
+            ignored with a warning.
         **overrides: explicit non-``None`` values (usually from the CLI).
 
     Returns:
@@ -181,8 +187,8 @@ def archive_config_from_yaml(path: Path, **overrides: Any) -> ArchiveConfig:
 
     Raises:
         FileNotFoundError: if ``path`` does not exist.
-        pydantic.ValidationError: if required fields are missing, a key is unknown, or the
-            document is not a mapping.
+        pydantic.ValidationError: if required fields are missing, or the document is not a
+            mapping.
     """
     with path.open(encoding="utf-8") as handle:
         document = yaml.safe_load(handle) or {}
@@ -202,21 +208,7 @@ def archive_config_from_yaml(path: Path, **overrides: Any) -> ArchiveConfig:
             ],
         )
 
-    unknown_keys = set(document) - set(ArchiveConfig.model_fields)
-    if unknown_keys:
-        raise ValidationError.from_exception_data(
-            title=f"Archive config input ({path.name})",
-            line_errors=[
-                {
-                    "type": PydanticCustomError(
-                        "archive_config_unknown_key",
-                        "Unrecognized top-level key(s) in {path}: {keys}",
-                        {"path": path.name, "keys": ", ".join(sorted(unknown_keys))},
-                    ),
-                    "input": document,
-                }
-            ],
-        )
+    warn_unknown_keys(document, path.name, set(ArchiveConfig.model_fields))
 
     merged = dict(document)
     for name, value in overrides.items():

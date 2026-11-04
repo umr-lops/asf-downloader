@@ -121,6 +121,11 @@ archive_dir: /data/nisar_archive
 log_level: INFO
 ```
 
+> **Shared operational config:** one YAML file can drive both commands (e.g. a single
+> `config_production_hpc.yaml`). Each command reads only the keys it knows; any key that
+> belongs to the other command is ignored with a warning. Required keys of the running
+> command must still be present.
+
 | Option            | Required | Description                                                        |
 |-------------------|----------|--------------------------------------------------------------------|
 | `--input-listing` | yes      | Listing of the products to archive (one `.h5` product per line).   |

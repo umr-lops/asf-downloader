@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pytest
@@ -90,13 +91,38 @@ def test_config_from_yaml_non_mapping_document(tmp_path: Path) -> None:
         config.config_from_yaml(path)
 
 
-def test_config_from_yaml_unknown_key(tmp_path: Path) -> None:
-    """An unrecognized top-level key raises ``ValidationError``."""
-    path = tmp_path / "bad.yaml"
-    path.write_text("output_dir: /data\nnot_a_field: 1\n", encoding="utf-8")
-    with pytest.raises(ValidationError) as excinfo:
-        config.config_from_yaml(path)
-    assert "not_a_field" in str(excinfo.value)
+def test_config_from_yaml_unknown_key_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unrecognized top-level key is ignored with a warning (shared config file)."""
+    path = tmp_path / "config.yaml"
+    path.write_text(
+        "catalog: /data/cat\noutput_dir: /data/nisar\nspool: /data/spool\n", encoding="utf-8"
+    )
+    with caplog.at_level(logging.WARNING):
+        cfg = config.config_from_yaml(path)
+    assert cfg.catalog == Path("/data/cat")
+    assert cfg.output_dir == Path("/data/nisar")
+    assert "spool" in caplog.text
+
+
+def test_shared_config_loads_for_both_commands(tmp_path: Path) -> None:
+    """One operational YAML holding the keys of both commands is read by both loaders."""
+    from asf_downloader.nisar_archive import archive_config_from_yaml
+
+    path = tmp_path / "config_production_hpc.yaml"
+    path.write_text(
+        "catalog: /data/cat\n"
+        "output_dir: /data/nisar\n"
+        "spool: /data/nisar\n"
+        "archive_dir: /data/archive\n",
+        encoding="utf-8",
+    )
+    cfg = config.config_from_yaml(path)
+    acfg = archive_config_from_yaml(path)
+    assert cfg.output_dir == Path("/data/nisar")
+    assert acfg.spool == Path("/data/nisar")
+    assert acfg.archive_dir == Path("/data/archive")
 
 
 def test_config_from_yaml_missing_required(tmp_path: Path) -> None:

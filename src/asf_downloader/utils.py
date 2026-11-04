@@ -1,9 +1,32 @@
-"""Assorted helpers: logging setup."""
+"""Assorted helpers: logging setup and config-file key filtering."""
 
 from __future__ import annotations
 
 import logging
 import sys
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+def warn_unknown_keys(document: dict[str, Any], source: str, known: set[str]) -> None:
+    """Log a warning for top-level keys of a config document that are not in ``known``.
+
+    A single operational YAML file may be shared by several commands (e.g. ``download`` and
+    ``nisar-archive``); each command only understands its own keys. Unknown keys are therefore
+    not an error — they are reported so a typo is visible in the logs, and left in the document
+    (the caller builds its model from the known keys only, so they are never passed to it).
+
+    Args:
+        document: the parsed top-level mapping of the config file.
+        source: human-readable name of the file, for the log message.
+        known: the set of field names the consuming model accepts.
+    """
+    unknown = sorted(set(document) - known)
+    if unknown:
+        logger.warning(
+            "Ignoring key(s) not used by this command in %s: %s", source, ", ".join(unknown)
+        )
 
 
 def setup_logging(level: str) -> None:
