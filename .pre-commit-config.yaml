@@ -18,6 +18,25 @@ repos:
     rev: 26.10.0
     hooks:
       - id: black
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v2.4.1
+    hooks:
+      - id: mypy
+        name: mypy --strict
+        files: ^(src|tests)/
+        args: [--strict]
+        # Same runtime dependencies as CI so the hermetic hook type-checks the
+        # real third-party APIs (pyproject [tool.mypy] supplies the rest).
+        additional_dependencies:
+          - asf_search
+          - pandas
+          - pyarrow
+          - "pydantic>=2"
+          - pyyaml
+          - tqdm
+          - tenacity
+          - pytest
+          - pytest-cov
 
 ci:
   autoupdate_schedule: monthly

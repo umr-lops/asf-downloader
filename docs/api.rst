@@ -13,8 +13,7 @@ SemVer (see ``AGENTS.md``).
    :undoc-members:
 
 .. automodule:: asf_downloader.transfer
-   :members:
-   :undoc-members:
+   :members: BACKENDS UnknownBackendError get_backend
 
 .. automodule:: asf_downloader.transfer.base
    :members:
@@ -29,6 +28,10 @@ SemVer (see ``AGENTS.md``).
    :undoc-members:
 
 .. automodule:: asf_downloader.cli
+   :members:
+   :undoc-members:
+
+.. automodule:: asf_downloader.nisar_archive
    :members:
    :undoc-members:
 
