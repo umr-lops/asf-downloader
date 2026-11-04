@@ -1,5 +1,11 @@
 # asf-downloader
 
+[![CI](https://github.com/umr-lops/asf-downloader/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/umr-lops/asf-downloader/actions/workflows/ci.yml?branch=main)
+[![codecov](https://codecov.io/gh/umr-lops/asf-downloader/branch/main/graph/badge.svg)](https://codecov.io/gh/umr-lops/asf-downloader)
+[![PyPI](https://img.shields.io/pypi/v/asf-downloader)](https://pypi.org/project/asf-downloader/)
+[![PyPI — Python versions](https://img.shields.io/pypi/pyversions/asf-downloader)](https://pypi.org/project/asf-downloader/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Python library and CLI to **download NISAR RSLC/GSLC products from ASF**, driven by the daily
 Parquet catalogs produced by the companion repository [`metadata-asf`].
 
@@ -18,6 +24,8 @@ contract), resolves those products against the ASF API and downloads them to a l
 - Transfer backend: authenticated **HTTPS** (`asf_search`), selectable through a pluggable
   backend interface so a direct **S3** backend (in-cloud only) can be added later without CLI
   changes — see [`docs/download_options.md`](docs/download_options.md).
+- Archiving: `nisar-archive` moves downloaded products from a spool into an
+  `<archive>/<PT>/<AM>/<YYYY>/<MM>/<DD>/` tree.
 
 Out of scope: product search/discovery (that is `metadata-asf`), scientific SAR processing, and
 in-cloud S3 access (planned, not implemented).
@@ -30,8 +38,8 @@ pre-commit install
 ```
 
 Python ≥ 3.10 is required. The project uses a `src/` layout with Hatchling as build backend,
-version derived from the Git history via `hatch-vcs`, and an entry point `asf-downloader`
-registering `asf_downloader.cli:main`.
+version derived from the Git history via `hatch-vcs`, and two entry points: `asf-downloader`
+(product download) and `nisar-archive` (spool → archive tree).
 
 ## Authentication
 
@@ -82,6 +90,47 @@ interrupted run can simply be re-executed to completion; `--overwrite` forces a 
 Precedence is **CLI > `--conf` file > defaults**. Exit codes: `0` all products downloaded or
 already present, `1` at least one product failed (or the API raised), `2` invalid usage.
 
+### CLI — `nisar-archive`
+
+Move the NISAR products of a *spool* directory (typically `--outputdir` of `download`) into an
+archive tree laid out as `<archive>/<PT>/<AM>/<YYYY>/<MM>/<DD>/<product>.h5`:
+
+- `PT` — product type, field 4 of the NISAR file name (`RSLC`, `GSLC`, …);
+- `AM` — acquisition mode code, field 9 (e.g. `4005` = 40 MHz band A + 5 MHz band B, `2005`,
+  `7700`, `0005`, …);
+- `YYYY/MM/DD` — acquisition start date, field 12.
+
+The file name is parsed locally (no ASF API call). Only the products of the `--input-listing`
+file (txt/csv, one `.h5` product per line, with or without the extension) are archived; a spool
+file whose NISAR name is unreadable, or that is not listed, is moved to `<archive>/quarantine`
+instead of being dropped, and non-NISAR files are left untouched. Re-running is a no-op for
+products already archived.
+
+```bash
+nisar-archive \
+  --input-listing /data/to_archive.txt \
+  --config-path archive.yaml \
+  --log-level INFO
+```
+
+`archive.yaml` (see `archive.example.yaml`):
+
+```yaml
+spool: /data/nisar            # directory the .h5 products are currently in
+archive_dir: /data/nisar_archive
+log_level: INFO
+```
+
+| Option            | Required | Description                                                        |
+|-------------------|----------|--------------------------------------------------------------------|
+| `--input-listing` | yes      | Listing of the products to archive (one `.h5` product per line).   |
+| `--config-path`   | yes      | YAML configuration file (`spool`, `archive_dir`, `log_level`).     |
+| `--log-level`     | no       | `DEBUG`, `INFO`, `WARNING` or `ERROR` (default: config, else INFO).|
+
+Precedence is **CLI > `--config-path` file > defaults**. Exit codes: `0` every listed product
+archived (or already archived), `1` at least one product missing or quarantined, `2` invalid
+usage.
+
 ### Python API
 
 The public API consumed by downstream tools:
@@ -90,12 +139,16 @@ The public API consumed by downstream tools:
 from pathlib import Path
 
 from asf_downloader.catalog import read_catalog
+from asf_downloader.nisar_archive import archive_spool, read_listing
 from asf_downloader.profiles import get_profile
 from asf_downloader.transfer import get_backend
 
 refs = read_catalog(Path("/data/nisar_catalog"))            # metadata-asf contract
 with get_backend("https") as backend:                        # pluggable transfer layer
     results = backend.download([r.granule_id for r in refs], Path("/data/nisar"), processes=3)
+
+summary = archive_spool(Path("/data/nisar"), Path("/data/nisar_archive"),
+                        read_listing(Path("/data/to_archive.txt")))  # spool → archive tree
 ```
 
 ### Quotas & limits (summary)

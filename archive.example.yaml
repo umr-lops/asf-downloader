@@ -1,0 +1,4 @@
+# nisar-archive configuration (see README, "CLI — nisar-archive")
+spool: /data/nisar
+archive_dir: /data/nisar_archive
+log_level: INFO

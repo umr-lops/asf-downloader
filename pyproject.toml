@@ -61,6 +61,7 @@ homepage = "https://github.com/umr-lops/asf-downloader"
 
 [project.scripts]
 asf-downloader = "asf_downloader.cli:main"
+nisar-archive = "asf_downloader.nisar_archive:main"
 
 [tool.hatch.version]
 source = "vcs"
